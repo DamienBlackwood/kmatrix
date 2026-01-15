@@ -14,8 +14,7 @@ python3 kmatrix.py
 
 ## Controls
 
-- **V** - Toggle vortex mode
-- **C** - Cycle color themes (green/blue/red/purple)
+- **C** - Cycle color themes (green/blue/red/purple/grayscale/ocean)
 - **+/-** - Speed up/slow down
 - **SPACE** - Pause/resume
 - **R** - Reverse direction
