@@ -1,23 +1,33 @@
 # kmatrix
 
-**My Take On cmatrix**
+my take on cmatrix!! (but python)
 
-## Features
+## Setup
 
-- **60 FPS** - I implemented differential rendering to make it really smooth
-
-## Run
+**Requires Python 3.13** (Python 3.14+ not yet supported by `windows-curses`)
 
 ```bash
+# Windows
+py -3.13 -m pip install -r requirements.txt
+py -3.13 kmatrix.py
+
+# Linux/macOS
+pip install -r requirements.txt
 python3 kmatrix.py
 ```
 
 ## Controls
 
-- **C** - Cycle color themes (green/blue/red/purple/grayscale/ocean)
-- **+/-** - Speed up/slow down
-- **SPACE** - Pause/resume
-- **R** - Reverse direction
-- **Q/ESC** - Quit
+| Key | Action |
+|-----|--------|
+| **C** | Cycle themes (green, blue, red, purple, grayscale, ocean) |
+| **+/-** | Speed up/down |
+| **SPACE** | Pause/resume |
+| **R** | Reverse direction |
+| **Q/ESC** | Quit |
 
-*I was inspired heavily by cmatrix, I tried my own python take on it, hope you like it!*
+## Features
+
+- 60 FPS with differential rendering
+- 6 color themes
+- Real-time controls
