@@ -24,6 +24,7 @@ python3 kmatrix.py
 | **+/-** | Speed up/down |
 | **SPACE** | Pause/resume |
 | **R** | Reverse direction |
+| **D/A** | Increase/decrease rainfall density (not fully implemented yet.) |
 | **Q/ESC** | Quit |
 
 ## Features
