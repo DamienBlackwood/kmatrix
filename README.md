@@ -20,15 +20,13 @@ python3 kmatrix.py
 
 | Key | Action |
 |-----|--------|
-| **C** | Cycle themes (green, blue, red, purple, grayscale, ocean) |
+| **C** | Cycle themes |
 | **+/-** | Speed up/down |
 | **SPACE** | Pause/resume |
 | **R** | Reverse direction |
-| **D/A** | Increase/decrease rainfall density (not fully implemented yet.) |
 | **Q/ESC** | Quit |
 
 ## Features
 
 - 60 FPS with differential rendering
 - 6 color themes
-- Real-time controls

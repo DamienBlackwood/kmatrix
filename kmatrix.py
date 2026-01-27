@@ -1,43 +1,49 @@
 #!/usr/bin/env python3
-import curses, random, math, time
+import curses, random, time
 
 CHARS = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789"
 
-class Drop:
-    def __init__(self, x, h):
-        self.x, self.y, self.spd, self.len = x, float(random.randint(-h, -1)), random.uniform(0.3, 1.5), random.randint(5, 20)
-        self.chars = [random.choice(CHARS) for _ in range(self.len)]
-
-    def update(self, h, speed=1.0, reverse=False):
-        self.y += self.spd * speed * (-1 if reverse else 1)
-        if (reverse and self.y + self.len < 0) or (not reverse and self.y - self.len > h):
-            self.y, self.spd = (float(random.randint(h+1, h+20)) if reverse else float(random.randint(-20, -1))), random.uniform(0.5, 1.8)
-            self.chars = [random.choice(CHARS) for _ in range(self.len)]
-
 def main(scr):
-    curses.curs_set(0); scr.nodelay(1); scr.timeout(0)
+    curses.curs_set(0)
+    scr.nodelay(1)
+
     THEMES = [
-        [232,22,28,34,46,40],           # green
-        [17,18,19,20,21,27],            # blue
-        [52,88,124,160,196,202],        # red
-        [53,89,125,161,197,171],        # purple
-        [235,238,241,245,249,255],      # sleek grayscale
-        [54,91,128,165,201,219]         # ocean gradient
+        [232,22,28,34,46,40], [17,18,19,20,21,27], [52,88,124,160,196,202],
+        [53,89,125,161,197,171], [235,238,241,245,249,255], [54,91,128,165,201,219]
     ]
     if curses.has_colors():
-        curses.start_color(); curses.use_default_colors()
-        for i, c in enumerate(THEMES[0], 1): curses.init_pair(i, c, -1)
+        curses.start_color()
+        curses.use_default_colors()
+        for i, c in enumerate(THEMES[0], 1):
+            curses.init_pair(i, c, -1)
 
     h, w = scr.getmaxyx()
-    CHUNK=8
-    drops, buf, speed, theme, paused, reverse = [Drop(x, h) for x in range(w)], {}, 1.0, 0, False, False
-    dirty={((y//CHUNK)*CHUNK, (x//CHUNK)*CHUNK) for y in range(h) for x in range(w)}
+    maxh, maxw = h - 1, w - 1
+
+    def build_colors():
+        c = [curses.color_pair(i) for i in range(1, 7)]
+        cb = [c[4] | curses.A_BOLD, c[5] | curses.A_BOLD]
+        return c, cb
+    colors, colors_bold = build_colors()
+
+    # Drops: [x, y, speed, length, chars[]]
+    # Spread across columns, ~60% density
+    def make_drops(w, h):
+        return [[x, random.uniform(-h, 0), random.uniform(0.4, 1.3), random.randint(5, 14),
+                 [random.randint(0, len(CHARS)-1) for _ in range(18)]]
+                for x in range(w) if random.random() < 0.6]
+
+    drops = make_drops(maxw, maxh)
+    prev_cells = set()  # Track cells that had content last frame
+    speed, theme, paused, reverse = 1.0, 0, False, False
 
     while True:
         nh, nw = scr.getmaxyx()
-        if nh != h or nw != w:
-            h, w, drops, buf = nh, nw, [Drop(x, h) for x in range(w)], {}
-            dirty={((y//CHUNK)*CHUNK, (x//CHUNK)*CHUNK) for y in range(h) for x in range(w)}
+        nh -= 1; nw -= 1
+        if nh != maxh or nw != maxw:
+            maxh, maxw = nh, nw
+            drops = make_drops(maxw, maxh)
+            prev_cells = set()
             scr.clear()
 
         ch = scr.getch()
@@ -46,42 +52,61 @@ def main(scr):
         if ch in (ord('-'), ord('_')): speed = max(0.2, speed - 0.2)
         if ch in (ord('c'), ord('C')):
             theme = (theme + 1) % len(THEMES)
-            for i, c in enumerate(THEMES[theme], 1): curses.init_pair(i, c, -1)
-        if ch in (ord(' '),): paused = not paused
+            for i, c in enumerate(THEMES[theme], 1):
+                curses.init_pair(i, c, -1)
+            colors, colors_bold = build_colors()
+        if ch == ord(' '): paused = not paused
         if ch in (ord('r'), ord('R')): reverse = not reverse
-        if ch == curses.KEY_RESIZE: continue
 
-        if paused: time.sleep(0.016); continue
+        if paused:
+            time.sleep(0.03)
+            continue
 
-        frame = {}
+        curr_cells = set()
+        addch = scr.addch  # Local reference for speed
+
         for d in drops:
-            d.update(h, speed, reverse)
-            for i in range(d.len):
-                y = int(d.y - i * (1 if not reverse else -1))
-                if 0 <= y < h-1 and 0 <= d.x < w-1:
-                    col = 6 if i == 0 else 5 if i < 3 else 4 if i < 6 else 3 if i < d.len * 0.6 else 2
-                    frame[(y, d.x)] = (d.chars[i], col)
+            x, y, spd, length, chars = d
+            y += spd * speed * (-1 if reverse else 1)
+            d[1] = y
 
-        for p in frame:
-            if buf.get(p) != frame[p]: dirty.add(((p[0]//CHUNK)*CHUNK, (p[1]//CHUNK)*CHUNK))
-        for p in buf:
-            if p not in frame: dirty.add(((p[0]//CHUNK)*CHUNK, (p[1]//CHUNK)*CHUNK))
+            if (reverse and y + length < 0) or (not reverse and y - length > maxh):
+                d[1] = random.uniform(maxh, maxh + 12) if reverse else random.uniform(-12, 0)
+                d[2] = random.uniform(0.4, 1.3)
+                d[3] = random.randint(5, 14)
+                continue
 
-        for cy, cx in dirty:
-            for y in range(cy, min(cy+CHUNK, h-1)):
-                for x in range(cx, min(cx+CHUNK, w-1)):
-                    p = (y, x)
-                    if p in frame:
-                        c, col = frame[p]
-                        try: scr.move(y, x); scr.addch(c, curses.color_pair(col)|(curses.A_BOLD if col>4 else 0))
-                        except: pass
-                    elif p in buf:
-                        try: scr.move(y, x); scr.addch(' ')
-                        except: pass
+            iy = int(y)
+            for i in range(length):
+                py = iy - i if not reverse else iy + i
+                if 0 <= py < maxh:
+                    curr_cells.add((py, x))
+                    ci = chars[i % len(chars)]
+                    ch_out = CHARS[ci]
+                    if i == 0:
+                        attr = colors_bold[1]
+                    elif i < 2:
+                        attr = colors_bold[0]
+                    elif i < 4:
+                        attr = colors[3]
+                    elif i < length >> 1:
+                        attr = colors[2]
+                    else:
+                        attr = colors[1]
+                    try: addch(py, x, ch_out, attr)
+                    except: pass
 
-        buf = frame; dirty = set(); scr.refresh(); time.sleep(0.016)
+        # Clear cells that are no longer occupied
+        for cell in prev_cells - curr_cells:
+            try: addch(cell[0], cell[1], ' ')
+            except: pass
+
+        prev_cells = curr_cells
+        scr.refresh()
+        time.sleep(0.016)
 
 if __name__ == "__main__":
-    import locale; locale.setlocale(locale.LC_ALL, '')
+    import locale
+    locale.setlocale(locale.LC_ALL, '')
     try: curses.wrapper(main)
-    except: pass
+    except KeyboardInterrupt: pass
