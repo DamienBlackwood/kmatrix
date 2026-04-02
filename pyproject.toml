@@ -1,0 +1,12 @@
+[project]
+name = "kmatrix"
+version = "0.2"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+kmatrix = "kmatrix:main_wrapper"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

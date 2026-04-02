@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
-import curses, random, time
+import curses, random, time, json, os, atexit
+
+CONFIG_PATH = os.path.expanduser("~/.kmatrix")
+state = {"theme": 0, "speed": 1.0, "reverse": False}
+
+def load_config():
+    try:
+        with open(CONFIG_PATH) as f:
+            d = json.load(f)
+        return d.get("theme", 0), d.get("speed", 1.0), d.get("reverse", False)
+    except:
+        return 0, 1.0, False
+
+def save_config():
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(state, f)
+    except:
+        pass
+
+atexit.register(save_config)
 
 CHARS = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789"
 
@@ -65,7 +85,8 @@ def main(scr):
         [54,91,128,165,201,219]         # ocean gradient
     ]
 
-    theme, speed = 0, 1.0
+    theme, speed, reverse = load_config()
+    state["theme"] = theme; state["speed"] = speed; state["reverse"] = reverse
 
     if curses.has_colors():
         curses.start_color(); curses.use_default_colors()
@@ -74,7 +95,7 @@ def main(scr):
     h, w = scr.getmaxyx()
     CHUNK = max(4, min(12, h // 20))
 
-    paused, reverse = False, False
+    paused = False
     show_help, show_exp = False, False
     mutate, density_sparse, long_mode = False, False, False
 
@@ -160,14 +181,14 @@ def main(scr):
 
         ch = scr.getch()
         if ch in (ord('q'), ord('Q'), 27): break
-        if ch in (ord('+'), ord('=')): speed = min(3.0, speed + 0.2)
-        if ch in (ord('-'), ord('_')): speed = max(0.2, speed - 0.2)
+        if ch in (ord('+'), ord('=')): speed = min(3.0, speed + 0.2); state["speed"] = speed
+        if ch in (ord('-'), ord('_')): speed = max(0.2, speed - 0.2); state["speed"] = speed
         if ch in (ord('c'), ord('C')):
-            theme = (theme + 1) % len(THEMES)
+            theme = (theme + 1) % len(THEMES); state["theme"] = theme
             for i, c in enumerate(THEMES[theme], 1): curses.init_pair(i, c, -1)
         if ch in (ord(' '),): paused = not paused
         if ch in (ord('r'), ord('R')):
-            reverse = not reverse
+            reverse = not reverse; state["reverse"] = reverse
             for d in drops: d.set_target(-1.0 if reverse else 1.0)
         if phase is None:
             if ch in (ord('?'),):
@@ -271,7 +292,10 @@ def main(scr):
             dirty = set(); scr.refresh()
         time.sleep(0.016)
 
-if __name__ == "__main__":
+def main_wrapper():
     import locale; locale.setlocale(locale.LC_ALL, '')
     try: curses.wrapper(main)
-    except: pass
+    except (KeyboardInterrupt, Exception): pass
+
+if __name__ == "__main__":
+    main_wrapper()

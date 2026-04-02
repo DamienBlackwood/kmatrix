@@ -1,19 +1,24 @@
 # kmatrix
 
-Terminal Matrix rain effect in Python.
+my take on cmatrix, written in Python.
 
 ## Installation
 
-Requires Python 3.13+ (3.14+ not supported by `windows-curses` yet).
+Needs Python 3.13+ and pipx.
 
 ```bash
-# Windows
-py -3.13 -m pip install -r requirements.txt
-py -3.13 kmatrix.py
+git clone https://github.com/DamienBlackwood/kmatrix
+cd kmatrix
+pipx install .
+```
 
-# macOS / Linux
-pip install -r requirements.txt
-python3 kmatrix.py
+Then just run `kmatrix`.
+
+**Windows:** Python 3.14+ breaks `windows-curses`, so stick to 3.13. pipx should still work, but if not:
+
+```bash
+py -3.13 -m pip install windows-curses
+py -3.13 kmatrix.py
 ```
 
 ## Keyboard
@@ -31,9 +36,3 @@ python3 kmatrix.py
 | `space` | Pause |
 | `q` / `esc` | Quit |
 
-## Features
-
-- Dirty region tracking for efficient rendering
-- 6 color themes
-- Smooth directional reversals
-- Character mutation and density modes
