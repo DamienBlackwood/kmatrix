@@ -1,32 +1,39 @@
 # kmatrix
 
-my take on cmatrix!! (but python)
+Terminal Matrix rain effect in Python.
 
-## Setup
+## Installation
 
-**Requires Python 3.13** (Python 3.14+ not yet supported by `windows-curses`)
+Requires Python 3.13+ (3.14+ not supported by `windows-curses` yet).
 
 ```bash
 # Windows
 py -3.13 -m pip install -r requirements.txt
 py -3.13 kmatrix.py
 
-# Linux/macOS
+# macOS / Linux
 pip install -r requirements.txt
 python3 kmatrix.py
 ```
 
-## Controls
+## Keyboard
 
 | Key | Action |
 |-----|--------|
-| **C** | Cycle themes |
-| **+/-** | Speed up/down |
-| **SPACE** | Pause/resume |
-| **R** | Reverse direction |
-| **Q/ESC** | Quit |
+| `+` / `-` | Speed up / down |
+| `c` | Cycle color theme |
+| `r` | Reverse direction |
+| `?` | Show help |
+| `h` | Experimental features |
+| `m` | Toggle character mutation |
+| `d` | Toggle sparse density |
+| `x` | Toggle long trails |
+| `space` | Pause |
+| `q` / `esc` | Quit |
 
 ## Features
 
-- 60 FPS with differential rendering
+- Dirty region tracking for efficient rendering
 - 6 color themes
+- Smooth directional reversals
+- Character mutation and density modes
