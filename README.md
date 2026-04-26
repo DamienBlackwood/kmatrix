@@ -1,6 +1,6 @@
 # kmatrix
 
-A smooth, delta-rendered cmatrix clone written in Python.
+A smooth, delta-rendered matrix rain effect, written in Python.
 
 Six color themes, reverse fall, speed control, character mutation, sparse density and long trails.
 
@@ -17,3 +17,7 @@ pipx install .
 ```
 
 Then run `kmatrix` from anywhere. Use `?` while running to toggle the help overlay.
+
+## Inspiration
+
+Inspired by [cmatrix](https://github.com/abishekvashok/cmatrix).
