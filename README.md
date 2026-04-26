@@ -1,38 +1,19 @@
 # kmatrix
 
-my take on cmatrix, written in Python.
+A smooth, delta-rendered cmatrix clone written in Python.
 
-## Installation
+Six color themes, reverse fall, speed control, character mutation, sparse density and long trails.
 
-Needs Python 3.13+ and pipx.
+See `MANUAL.md` for full installation, controls, and file reference.
+
+## Quick start
+
+Requires Python 3.13+.
 
 ```bash
-git clone https://github.com/DamienBlackwood/kmatrix
+git clone https://github.com/DamienBlackwood/kmatrix.git
 cd kmatrix
 pipx install .
 ```
 
-Then just run `kmatrix`.
-
-**Windows:** Python 3.14+ breaks `windows-curses`, so stick to 3.13. pipx should still work, but if not:
-
-```bash
-py -3.13 -m pip install windows-curses
-py -3.13 kmatrix.py
-```
-
-## Keyboard
-
-| Key | Action |
-|-----|--------|
-| `+` / `-` | Speed up / down |
-| `c` | Cycle color theme |
-| `r` | Reverse direction |
-| `?` | Show help |
-| `h` | Experimental features |
-| `m` | Toggle character mutation |
-| `d` | Toggle sparse density |
-| `x` | Toggle long trails |
-| `space` | Pause |
-| `q` / `esc` | Quit |
-
+Then run `kmatrix` from anywhere. Use `?` while running to toggle the help overlay.

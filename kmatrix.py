@@ -2,15 +2,16 @@
 import curses, random, time, json, os, atexit
 
 CONFIG_PATH = os.path.expanduser("~/.kmatrix")
-state = {"theme": 0, "speed": 1.0, "reverse": False}
+state = {"theme": 0, "speed": 1.0, "reverse": False, "mutate": False, "sparse": False, "long": False}
 
 def load_config():
     try:
         with open(CONFIG_PATH) as f:
             d = json.load(f)
-        return d.get("theme", 0), d.get("speed", 1.0), d.get("reverse", False)
+        return (d.get("theme", 0), d.get("speed", 1.0), d.get("reverse", False),
+                d.get("mutate", False), d.get("sparse", False), d.get("long", False))
     except:
-        return 0, 1.0, False
+        return 0, 1.0, False, False, False, False
 
 def save_config():
     try:
@@ -24,7 +25,7 @@ atexit.register(save_config)
 CHARS = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789"
 
 AUTHOR  = "github.com/DamienBlackwood"
-VERSION = "v0.2"
+VERSION = "v0.3"
 
 class Drop:
     def __init__(self, x, h, long=False):
@@ -32,6 +33,7 @@ class Drop:
         self.len = random.randint(30, 60) if long else random.randint(5, 20)
         self.spd = random.uniform(0.3, 1.5)
         self.y = float(random.randint(-h, -1))
+        self.acc = random.random()
         self.chars = [random.choice(CHARS) for _ in range(self.len)]
         self.dir = 1.0
         self.target_dir = 1.0
@@ -43,6 +45,7 @@ class Drop:
     def set_target(self, target):
         self.target_dir = target
         self.flip_delay = random.randint(0, 25)
+        self.acc = random.random()
 
     def update(self, h, speed=1.0, mutate=False):
         if self.flip_delay > 0:
@@ -50,7 +53,10 @@ class Drop:
         else:
             self.dir += (self.target_dir - self.dir) * 0.08
 
-        self.y += self.spd * speed * self.dir
+        self.acc += self.spd * speed
+        steps = int(self.acc)
+        self.acc -= steps
+        self.y += steps * self.dir
 
         mutated = False
         if mutate:
@@ -85,19 +91,43 @@ def main(scr):
         [54,91,128,165,201,219]         # ocean gradient
     ]
 
-    theme, speed, reverse = load_config()
+    theme, speed, reverse, cfg_mutate, cfg_sparse, cfg_long = load_config()
     state["theme"] = theme; state["speed"] = speed; state["reverse"] = reverse
+    state["mutate"] = cfg_mutate; state["sparse"] = cfg_sparse; state["long"] = cfg_long
+
+    ATTR = [0] * 7
+    def refresh_attr():
+        for i in range(1, 7):
+            ATTR[i] = curses.color_pair(i) | (curses.A_BOLD if i > 4 else 0)
 
     if curses.has_colors():
         curses.start_color(); curses.use_default_colors()
         for i, c in enumerate(THEMES[theme], 1): curses.init_pair(i, c, -1)
+    refresh_attr()
+
+    def detect_fps_env():
+        env = os.environ.get("KMATRIX_FPS")
+        if env:
+            try:
+                return 1.0 / max(1, min(240, int(env)))
+            except ValueError:
+                pass
+        fast = ("alacritty", "kitty", "ghostty", "wezterm", "rio")
+        term = os.environ.get("TERM", "")
+        prog = os.environ.get("TERM_PROGRAM", "")
+        low = term.lower() + prog.lower()
+        if any(t in low for t in fast):
+            return 1.0 / 120
+        return 1.0 / 60
 
     h, w = scr.getmaxyx()
-    CHUNK = max(4, min(12, h // 20))
+    TARGET_FRAME_TIME = detect_fps_env()
 
     paused = False
     show_help, show_exp = False, False
-    mutate, density_sparse, long_mode = False, False, False
+    mutate = state.get("mutate", False)
+    density_sparse = state.get("sparse", False)
+    long_mode = state.get("long", False)
 
     phase = None
     direction = None
@@ -106,10 +136,21 @@ def main(scr):
     closing = None
     opening = None
     transition_gen = 0
+    transition_delay = 0
+    force_dense = False
 
     drops = make_drops(w, h)
-    buf = {}
-    dirty = {((y//CHUNK)*CHUNK, (x//CHUNK)*CHUNK) for y in range(h) for x in range(w)}
+    last_drawn = {}
+
+    overlay_cache = None
+    overlay_cache_key = None
+    def get_overlay():
+        nonlocal overlay_cache, overlay_cache_key
+        key = (show_help, show_exp, h, w, mutate, density_sparse, long_mode)
+        if key != overlay_cache_key:
+            overlay_cache = build_overlay(show_help, show_exp)
+            overlay_cache_key = key
+        return overlay_cache
 
     HELP = [
         ("", ""),
@@ -125,22 +166,24 @@ def main(scr):
         ("", ""),
     ]
 
-    EXP_HELP = [
-        ("", ""),
-        ("  experimental", ""),
-        ("", ""),
-        ("  m",   "character mutation"),
-        ("  d",   "sparse density"),
-        ("  x",   "long trails"),
-        ("", ""),
-        ("  h",   "toggle this panel"),
-        ("", ""),
-    ]
+    def get_exp_help():
+        return [
+            ("", ""),
+            ("  experimental settings", ""),
+            ("", ""),
+            (f"  m  [{'on' if mutate else 'off'}]", "character mutation"),
+            (f"  d  [{'on' if density_sparse else 'off'}]", "sparse density"),
+            (f"  x  [{'on' if long_mode else 'off'}]", "long trails"),
+            ("", ""),
+            ("  h",   "toggle this panel"),
+            ("", ""),
+        ]
 
     def build_overlay(show_h, show_e):
-        pw = 32
+        pw = 44
         cells = {}
-        for rows in ([HELP] if show_h else []) + ([EXP_HELP] if show_e else []):
+        exp_rows = get_exp_help()
+        for rows in ([HELP] if show_h else []) + ([exp_rows] if show_e else []):
             py = max(1, h//2 - len(rows)//2)
             px = max(1, w//2 - pw//2)
             for i, (key, desc) in enumerate(rows):
@@ -154,10 +197,12 @@ def main(scr):
         return cells
 
     def start_transition(dir_, show_h, show_e, open_which=None, close_which=None):
-        nonlocal phase, direction, snap, revealed, closing, opening, transition_gen
+        nonlocal phase, direction, snap, revealed, closing, opening, transition_gen, transition_delay, force_dense
         transition_gen += 1
-        phase = 'waiting'
+        transition_delay = 12
+        phase = 'delay'
         direction = dir_
+        force_dense = True
         sh = show_h or (open_which == 'help')
         se = show_e or (open_which == 'exp')
         snap = build_overlay(sh, se)
@@ -165,18 +210,22 @@ def main(scr):
         closing = close_which
         opening = open_which
         for d in drops:
-            d.active = True
             d.born_gen = transition_gen - 1
+            if d.dir >= 0:
+                completely_off = d.y < 0 or d.y - d.len > h
+            else:
+                completely_off = d.y > h or d.y + d.len < 0
+            if completely_off:
+                d.active = True
 
     while True:
         nh, nw = scr.getmaxyx()
         if nh != h or nw != w:
             h, w = nh, nw
             drops = make_drops(w, h)
-            buf = {}
-            CHUNK = max(4, min(12, h // 20))
-            dirty = {((y//CHUNK)*CHUNK, (x//CHUNK)*CHUNK) for y in range(h) for x in range(w)}
+            last_drawn = {}
             phase = None; direction = None; snap = {}; revealed = set(); closing = None; opening = None
+            overlay_cache = None
             scr.clear()
 
         ch = scr.getch()
@@ -186,6 +235,7 @@ def main(scr):
         if ch in (ord('c'), ord('C')):
             theme = (theme + 1) % len(THEMES); state["theme"] = theme
             for i, c in enumerate(THEMES[theme], 1): curses.init_pair(i, c, -1)
+            refresh_attr()
         if ch in (ord(' '),): paused = not paused
         if ch in (ord('r'), ord('R')):
             reverse = not reverse; state["reverse"] = reverse
@@ -197,16 +247,22 @@ def main(scr):
             if ch in (ord('h'), ord('H')):
                 if not show_exp: start_transition('in', show_help, show_exp, open_which='exp')
                 else: start_transition('out', show_help, show_exp, close_which='exp')
-        if ch in (ord('m'), ord('M')): mutate = not mutate
-        if ch in (ord('d'), ord('D')): density_sparse = not density_sparse
-        if ch in (ord('x'), ord('X')): long_mode = not long_mode
+        if ch in (ord('m'), ord('M')):
+            mutate = not mutate; state["mutate"] = mutate
+        if ch in (ord('d'), ord('D')):
+            density_sparse = not density_sparse; state["sparse"] = density_sparse
+        if ch in (ord('x'), ord('X')):
+            long_mode = not long_mode; state["long"] = long_mode
         if ch == curses.KEY_RESIZE: continue
 
-        if paused: time.sleep(0.016); continue
+        if paused:
+            time.sleep(max(0.005, TARGET_FRAME_TIME))
+            continue
+
+        frame_start = time.perf_counter()
 
         in_transition = phase is not None
         use_long = long_mode or in_transition
-        use_dense = not density_sparse or in_transition
 
         frame = {}
         for d in drops:
@@ -217,22 +273,46 @@ def main(scr):
                 d.y = float(random.randint(-20, -1)) if d.target_dir >= 0 else float(random.randint(h+1, h+20))
                 d.chars = [random.choice(CHARS) for _ in range(d.len)]
                 d.born_gen = transition_gen
-                if not in_transition:
-                    d.active = not density_sparse or random.random() < 0.35
-            if not d.active: continue
-            for i in range(d.len):
-                y = int(d.y - i * (1 if d.dir >= 0 else -1))
-                if 0 <= y < h-1 and 0 <= d.x < w-1:
-                    col = 6 if i == 0 else 5 if i < 3 else 4 if i < 6 else 3 if i < d.len * 0.6 else 2
-                    frame[(y, d.x)] = (d.chars[i], col)
-                    if mutated:
-                        dirty.add(((y//CHUNK)*CHUNK, (d.x//CHUNK)*CHUNK))
-                    if phase in ('waiting', 'painting_in', 'painting_out') and i == 0 and d.born_gen == transition_gen and (y, d.x) in snap:
-                        if (y, d.x) not in revealed:
-                            revealed.add((y, d.x))
-                            dirty.add(((y//CHUNK)*CHUNK, (d.x//CHUNK)*CHUNK))
-                        if phase == 'waiting':
-                            phase = 'painting_in' if direction == 'in' else 'painting_out'
+                if force_dense or not density_sparse:
+                    d.active = True
+                else:
+                    d.active = random.random() < 0.35
+            if not d.active:
+                continue
+
+            if not (0 <= d.x < w - 1):
+                continue
+
+            d_len = d.len
+            sign = 1 if d.dir >= 0 else -1
+            d_y = int(d.y)
+
+            if sign == 1:
+                i_start = max(0, d_y - (h - 2))
+                i_end = min(d_len, d_y + 1)
+            else:
+                i_start = max(0, -d_y)
+                i_end = min(d_len, h - 1 - d_y)
+
+            if i_start >= i_end:
+                continue
+
+            if phase in ('waiting', 'painting_in', 'painting_out') and d.born_gen == transition_gen:
+                head_pos = (d_y, d.x)
+                if head_pos in snap and head_pos not in revealed:
+                    revealed.add(head_pos)
+                    if phase == 'waiting':
+                        phase = 'painting_in' if direction == 'in' else 'painting_out'
+
+            for i in range(i_start, i_end):
+                y = d_y - i * sign
+                col = 6 if i == 0 else 5 if i < 3 else 4 if i < 6 else 3 if i < d_len * 0.6 else 2
+                frame[(y, d.x)] = (d.chars[i], ATTR[col])
+
+        if phase == 'delay':
+            transition_delay -= 1
+            if transition_delay <= 0:
+                phase = 'waiting'
 
         if phase in ('painting_in', 'painting_out') and snap and revealed >= set(snap.keys()):
             if opening == 'help': show_help = True
@@ -240,57 +320,59 @@ def main(scr):
             if closing == 'help': show_help = False
             if closing == 'exp':  show_exp  = False
             phase = None; direction = None; snap = {}; revealed = set(); closing = None; opening = None
+            force_dense = False
 
-        overlay = build_overlay(show_help, show_exp)
+        overlay = get_overlay()
 
-        for p in frame:
-            if buf.get(p) != frame[p]: dirty.add(((p[0]//CHUNK)*CHUNK, (p[1]//CHUNK)*CHUNK))
-        for p in buf:
-            if p not in frame: dirty.add(((p[0]//CHUNK)*CHUNK, (p[1]//CHUNK)*CHUNK))
-        if phase in ('painting_in', 'painting_out'):
+        target = dict(frame)
+        if phase == 'painting_in' and snap:
+            for p in revealed:
+                target[p] = snap[p]
+        elif phase == 'painting_out' and snap:
             for p in snap:
-                dirty.add(((p[0]//CHUNK)*CHUNK, (p[1]//CHUNK)*CHUNK))
-
-        for cy, cx in dirty:
-            for y in range(cy, min(cy+CHUNK, h-1)):
-                for x in range(cx, min(cx+CHUNK, w-1)):
-                    p = (y, x)
-                    if phase in ('painting_in', 'painting_out') and p in snap:
-                        show = p in revealed if phase == 'painting_in' else p not in revealed
-                        if show:
-                            ch_, attr = snap[p]
-                            try: scr.move(y, x); scr.addch(ch_, attr)
-                            except curses.error: pass
-                        elif p in frame:
-                            c, col = frame[p]
-                            try: scr.move(y, x); scr.addch(c, curses.color_pair(col)|(curses.A_BOLD if col>4 else 0))
-                            except curses.error: pass
-                        else:
-                            try: scr.move(y, x); scr.addch(' ')
-                            except curses.error: pass
-                    elif p in overlay and phase not in ('painting_in', 'painting_out'):
-                        ch_, attr = overlay[p]
-                        try: scr.move(y, x); scr.addch(ch_, attr)
-                        except curses.error: pass
-                    elif p in frame:
-                        c, col = frame[p]
-                        try: scr.move(y, x); scr.addch(c, curses.color_pair(col)|(curses.A_BOLD if col>4 else 0))
-                        except curses.error: pass
-                    elif p in buf:
-                        try: scr.move(y, x); scr.addch(' ')
-                        except curses.error: pass
+                if p not in revealed:
+                    target[p] = snap[p]
+        elif overlay:
+            target.update(overlay)
 
         bar_visible = show_help or opening == 'help' or closing == 'help'
-        bar = f"  {AUTHOR}  ·  {VERSION} ".ljust(w) if bar_visible else " " * w
-        for j, ch_ in enumerate(bar):
-            if j < w-1:
-                try: scr.move(h-1, j); scr.addch(ch_, curses.color_pair(2))
-                except curses.error: pass
+        if bar_visible:
+            left = f"  {VERSION}"
+            right = f"{AUTHOR}  "
+            pad = max(2, w - 1 - len(left) - len(right))
+            bar_text = left + " " * pad + right
+            bar_attr = ATTR[2]
+        else:
+            bar_text = ' ' * (w - 1)
+            bar_attr = ATTR[2]
 
-        buf = frame
-        if dirty:
-            dirty = set(); scr.refresh()
-        time.sleep(0.016)
+        for j, ch_ in enumerate(bar_text):
+            if j < w - 1:
+                target[(h - 1, j)] = (ch_, bar_attr)
+
+        for p, val in target.items():
+            if last_drawn.get(p) != val:
+                try:
+                    scr.addch(p[0], p[1], val[0], val[1])
+                except curses.error:
+                    pass
+
+        for p in last_drawn:
+            if p not in target:
+                try:
+                    scr.addch(p[0], p[1], ' ', bar_attr)
+                except curses.error:
+                    pass
+
+        if target != last_drawn:
+            last_drawn = dict(target)
+            scr.noutrefresh()
+            curses.doupdate()
+
+        elapsed = time.perf_counter() - frame_start
+        sleep_time = TARGET_FRAME_TIME - elapsed
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 def main_wrapper():
     import locale; locale.setlocale(locale.LC_ALL, '')

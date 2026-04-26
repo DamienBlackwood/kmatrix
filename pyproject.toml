@@ -1,6 +1,7 @@
 [project]
 name = "kmatrix"
-version = "0.2"
+version = "0.3.0"
+description = "A Python-based cmatrix clone with smooth delta rendering and themes."
 requires-python = ">=3.13"
 dependencies = []
 
@@ -10,3 +11,6 @@ kmatrix = "kmatrix:main_wrapper"
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["kmatrix"]
