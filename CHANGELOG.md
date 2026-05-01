@@ -36,8 +36,6 @@ Render rewrite — delta drawing, fixed frame cap, smooth stepping, and persiste
 
 - Fixed stale `bar_attr` reference when the bottom bar is hidden.
 
----
-
 ## v0.2.0
 
 Renderer refactor — dirty tracking, themes, controls, config, pipx.
