@@ -30,6 +30,4 @@ Then run `kmatrix` from anywhere. Use `?` while running to toggle the help overl
 
 Inspired by [cmatrix](https://github.com/abishekvashok/cmatrix).
 
-## Methodology
-
 All code written by me, drawing from existing research but implemented independently.
