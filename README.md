@@ -32,4 +32,4 @@ Inspired by [cmatrix](https://github.com/abishekvashok/cmatrix).
 
 ## Methodology
 
-All code written by me, drawing from existing research but implemented independently. No AI was used.
+All code written by me, drawing from existing research but implemented independently.
